@@ -33,6 +33,67 @@ A scalable, production-grade backend microservice for physician appointment sche
 
 ### **Key APIs**
 
+#### **GET `/api/clinics`**
+
+Returns all available clinics in the system.
+
+**Response:**
+
+```json
+[
+  {
+    "id": "42df8813-030b-4d02-bf7f-694343788b10",
+    "name": "Downtown Health Clinic",
+    "street": "123 King St",
+    "city": "Toronto",
+    "province": "ON",
+    "postalCode": "M5H 2N2",
+    "country": "Canada",
+    "timezone": "America/Toronto"
+  }
+]
+```
+
+#### **GET `/api/physicians`**
+
+Returns all available physicians in the system.
+
+**Response:**
+
+```json
+[
+  {
+    "id": "d8ace9be-9529-4f10-9ea0-b8ca6f87de69",
+    "firstName": "John",
+    "lastName": "Doe",
+    "specialty": "Family Medicine",
+    "email": "johndoe@example.com",
+    "phone": "4165551234",
+    "clinicId": "42df8813-030b-4d02-bf7f-694343788b10"
+  }
+]
+```
+
+#### **GET `/api/patients`**
+
+Returns all registered patients in the system.
+
+**Response:**
+
+```json
+[
+  {
+    "id": "342610ca-8c17-4f01-8fd9-4b02a7f69b2c",
+    "firstName": "Alice",
+    "lastName": "Smith",
+    "dob": "1995-03-10",
+    "healthCardNumber": "OHIP123456",
+    "email": "alice@example.com",
+    "phone": "4165556789"
+  }
+]
+```
+
 #### **POST `/api/appointments/recommend`**
 
 **Request:**
@@ -148,14 +209,22 @@ npm run test
 npm run test:e2e
 ```
 
-- 100% test coverage for business logic and API contract.
-- E2E tests use real seed data and validate all edge cases.
+- **100% test coverage** for business logic and API contract
+- **Safe E2E tests** - use existing seed data without modifications
+- **No database side effects** - tests only read data, never modify it
+- **Comprehensive validation** of edge cases and error scenarios
 
 ---
 
 ## API Documentation
 
-- Swagger UI available at: `http://localhost:3000/api/docs`
+- **Swagger UI:** Available at `http://localhost:3000/api/docs`
+- **Documentation:** Complete API documentation with request/response schemas
+- **Endpoints Covered:**
+  - `GET /api/clinics` - List all clinics
+  - `GET /api/physicians` - List all physicians
+  - `GET /api/patients` - List all patients
+  - `POST /api/appointments/recommend` - Get appointment slot recommendations
 
 ---
 
@@ -163,6 +232,34 @@ npm run test:e2e
 
 - [Download the Postman Collection](./docs/nextera-ehr-api.postman_collection.json)  
   _Import into Postman to try endpoints._
+
+### **Using the Postman Collection**
+
+The collection includes helper endpoints and dynamic UUID management:
+
+#### **Setup Workflow:**
+
+1. **Run GET requests first** to fetch current UUIDs:
+   - `GET /api/clinics` - Sets `{{clinicId}}` variable
+   - `GET /api/physicians` - Sets `{{physicianId}}` variable
+   - `GET /api/patients` - Sets `{{patientId}}` variable
+
+2. **Use variables in main requests:**
+   - POST `/api/appointments/recommend` uses `{{clinicId}}`, `{{physicianId}}`, `{{patientId}}`
+
+#### **Dynamic UUID Management:**
+
+- Each GET request automatically sets collection variables with the latest UUIDs
+- No need to manually update UUIDs when database is reseeded
+- Variables are used in subsequent requests automatically
+
+#### **Testing Workflow:**
+
+1. Start your NestJS server: `npm run start:dev`
+2. Import the Postman collection
+3. Run the three GET requests in order
+4. Test the appointment recommendation endpoint
+5. All requests will use the current UUIDs from your database
 
 ---
 

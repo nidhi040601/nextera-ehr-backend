@@ -13,7 +13,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"clinicId\": \"872660f2-e8a0-4bf4-a17d-aee2f88cb163\",\n    \"physicianId\": \"f5c4b471-beb0-4ad2-8279-6b48a39ef997\",\n    \"patientId\": \"2951385f-395b-4eed-893f-6b862804ad78\",\n    \"preferredDate\": \"2025-07-01\",\n    \"durationMinutes\":\"20\"\n}",
+					"raw": "{\n  \"clinicId\": \"{{clinicId}}\",\n  \"physicianId\": \"{{physicianId}}\",\n  \"patientId\": \"{{patientId}}\",\n  \"preferredDate\": \"2025-07-01\",\n  \"durationMinutes\": 15\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -35,6 +35,126 @@
 				}
 			},
 			"response": []
+		},
+		{
+			"name": "GET ALL CLINICS",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"// Set the first clinic's ID as a collection variable",
+							"let clinics = pm.response.json();",
+							"if (clinics.length > 0) {",
+							"    pm.collectionVariables.set(\"clinicId\", clinics[0].id);",
+							"}"
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:3000/api/clinics",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3000",
+					"path": [
+						"api",
+						"clinics"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GET ALL PHYSICIANS",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"let physicians = pm.response.json();",
+							"if (physicians.length > 0) {",
+							"    pm.collectionVariables.set(\"physicianId\", physicians[0].id);",
+							"}"
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:3000/api/physicians",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3000",
+					"path": [
+						"api",
+						"physicians"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GET ALL PATIENTS",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"let patients = pm.response.json();",
+							"if (patients.length > 0) {",
+							"    pm.collectionVariables.set(\"patientId\", patients[0].id);",
+							"}"
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:3000/api/patients",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3000",
+					"path": [
+						"api",
+						"patients"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "clinicId",
+			"value": ""
+		},
+		{
+			"key": "physicianId",
+			"value": ""
+		},
+		{
+			"key": "patientId",
+			"value": ""
 		}
 	]
 }
