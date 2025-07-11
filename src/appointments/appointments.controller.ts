@@ -5,6 +5,7 @@ import {
   HttpException,
   HttpStatus,
   Logger,
+  HttpCode,
 } from '@nestjs/common';
 import {
   RecommendAppointmentDto,
@@ -20,6 +21,7 @@ export class AppointmentsController {
   constructor(private readonly appointmentsService: AppointmentsService) {}
 
   @Post('recommend')
+  @HttpCode(200)
   @ApiOperation({
     summary: 'Get top 10 recommended appointment slots for the patient',
   })
