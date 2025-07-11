@@ -1,6 +1,6 @@
 # Nextera EHR – Physician Appointment Scheduler
 
-A scalable, production-grade backend microservice for physician appointment scheduling, built with NestJS and PostgreSQL.
+A scalable, production-grade modular backend for physician appointment scheduling, built with NestJS and PostgreSQL.
 
 ---
 
