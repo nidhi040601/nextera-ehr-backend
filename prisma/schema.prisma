@@ -6,10 +6,97 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model Clinic {
+  id         String    @id @default(uuid())
+  name       String    
+  street     String    
+  city       String   
+  province   String    
+  postalCode String    @db.VarChar(10) 
+  country    String    
+  timezone   String   
+  physicians Physician[]
+  appointments Appointment[] 
+  availabilityBlocks AvailabilityBlock[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Patient {
+  id               String       @id @default(uuid())
+  firstName        String
+  lastName         String
+  dob              DateTime
+  healthCardNumber String       @unique @db.VarChar(20)
+  email            String
+  phone            String?      @db.VarChar(15)
+  appointments     Appointment[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+}
+
+model Physician {
+  id               String              @id @default(uuid())
+  firstName        String
+  lastName         String
+  specialty        String
+  email            String
+  phone            String?             @db.VarChar(15)
+  clinic           Clinic              @relation(fields: [clinicId], references: [id])
+  clinicId         String
+  appointments     Appointment[]
+  availabilityBlocks AvailabilityBlock[]
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+}
+
+model BillingRule {
+  code             String       @id
+  description      String
+  minDurationMinutes Int
+  minGapAfter      Int
+  maxApptsPerDay   Int?
+  appointments     Appointment[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+}
+
+model AvailabilityBlock {
+  id           String     @id @default(uuid())
+  physician    Physician  @relation(fields: [physicianId], references: [id])
+  physicianId  String
+  clinic       Clinic     @relation(fields: [clinicId], references: [id])
+  clinicId     String
+  isRecurring  Boolean    @default(false)
+  dayOfWeek    Int?
+  specificDate DateTime?
+  startTime    DateTime
+  endTime      DateTime
+  isAvailable  Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model Appointment {
+  id           String       @id @default(uuid())
+  physician    Physician    @relation(fields: [physicianId], references: [id])
+  physicianId  String
+  patient      Patient      @relation(fields: [patientId], references: [id])
+  patientId    String
+  clinic       Clinic       @relation(fields: [clinicId], references: [id])
+  clinicId     String
+  billingRule  BillingRule  @relation(fields: [billingCode], references: [code])
+  billingCode  String
+  startTime    DateTime
+  endTime      DateTime
+  status       String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 }
