@@ -1,0 +1,40 @@
+{
+	"info": {
+		"_postman_id": "031b0240-5b5a-49bf-8996-07fe0f46a24c",
+		"name": "Nextera EHR",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "11688975"
+	},
+	"item": [
+		{
+			"name": "RECOMMEND APPOINTMENTS SLOTS",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"clinicId\": \"872660f2-e8a0-4bf4-a17d-aee2f88cb163\",\n    \"physicianId\": \"f5c4b471-beb0-4ad2-8279-6b48a39ef997\",\n    \"patientId\": \"2951385f-395b-4eed-893f-6b862804ad78\",\n    \"preferredDate\": \"2025-07-01\",\n    \"durationMinutes\":\"20\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:3000/api/appointments/recommend",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3000",
+					"path": [
+						"api",
+						"appointments",
+						"recommend"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

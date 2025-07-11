@@ -1,98 +1,212 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Nextera EHR – Physician Appointment Scheduler
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A scalable, production-grade backend microservice for physician appointment scheduling, built with NestJS and PostgreSQL.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+---
 
-## Description
+## Assumptions
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- **Multi-clinic support:** System handles multiple clinics and physicians
+- **Ontario billing rules:** Ontario's billing rules are pre-configured in the database.
+- **Slot availability:** Providers have predefined available time slots
+- **Duration constraints:** Appointment durations range from 5 to 480 minutes (8 hours max)
+- **Time granularity:** Ontario clinics use 15-minute intervals (e.g., 9:00, 9:15, 9:30, 9:45)
+- **Provider availability:** Providers have set working hours and available slots
 
-## Project setup
+---
 
-```bash
-$ npm install
+## Design Document
+
+### **ERD**
+
+> ![ERD Diagram](./docs/nextera-ehr-erd-diagram.png)  
+> _See [LumiChart](https://lucid.app/lucidchart/4c924f9d-19d7-4e22-b183-05433a9f3a9b/edit?viewport_loc=-675%2C-769%2C4159%2C2677%2C0_0&invitationId=inv_30ce3bc9-dcfa-464e-bb6a-c9aef3b96d71) for the full interactive ERD._
+
+**Entities:**
+
+- Clinic
+- Physician
+- Patient
+- Appointment
+- AvailabilityBlock
+- BillingRule
+
+### **Key APIs**
+
+#### **POST `/api/appointments/recommend`**
+
+**Request:**
+
+```json
+{
+  "clinicId": "42df8813-030b-4d02-bf7f-694343788b10",
+  "physicianId": "d8ace9be-9529-4f10-9ea0-b8ca6f87de69",
+  "patientId": "342610ca-8c17-4f01-8fd9-4b02a7f69b2c",
+  "preferredDate": "2025-07-01",
+  "durationMinutes": 15
+}
 ```
 
-## Compile and run the project
+**Response:**
 
-```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+```json
+{
+  "status": "success",
+  "recommendedSlots": [
+    "2025-07-01T09:00:00Z",
+    "2025-07-01T10:00:00Z"
+    // ...
+  ]
+}
 ```
 
-## Run tests
+- Returns 200 OK for all recommendations (including "no slots available").
+- Returns 400 for validation errors (e.g., invalid UUID, missing fields).
+- Returns 400 if the clinic, physician, or patient does not exist.
+
+### **Scheduling Algorithm Logic Flow**
+
+1. **Validate Input Entities**
+   - Confirm that the provided `clinicId`, `physicianId`, and `patientId` exist in the database.
+   - If any are missing, return a 400 error.
+
+2. **Parse and Localize Date**
+   - Convert the `preferredDate` (YYYY-MM-DD) to the clinic’s timezone.
+   - Determine the start and end of the day in that timezone.
+
+3. **Fetch Scheduling Data**
+   - Retrieve all **availability blocks** for the physician at the clinic on the given day (including both recurring and specific-date blocks).
+   - Retrieve all **existing appointments** for the physician at the clinic on the given day (excluding cancelled).
+   - Retrieve all **billing rules** for the clinic/physician.
+
+4. **Build Availability Windows**
+   - For each availability block, create a time window (interval) in the clinic’s timezone.
+
+5. **Generate Candidate Slots**
+   - For each window, slice it into candidate slots of the requested `durationMinutes`.
+   - Move the slot start time forward in 15-minute increments (configurable granularity).
+
+6. **Filter Out Conflicting Slots**
+   - Remove any candidate slot that overlaps with an existing appointment for the physician at the clinic.
+
+7. **Apply Ontario Billing Gap Rules**
+   - For each remaining slot, determine the minimum required gap before and after (from the most relevant billing rule).
+   - Penalize the slot’s score if the gap before or after is less than required.
+
+8. **Score and Rank Slots**
+   - Score each slot based on:
+     - Sufficient gap before/after (bonus/penalty)
+     - Time of day (e.g., morning slots get a bonus)
+     - Clustering (slots with fewer nearby appointments get a bonus)
+     - Least disruption (slots that are not tightly packed get a bonus)
+   - Only slots with a positive score are considered.
+
+9. **Sort and Select Top Slots**
+   - Sort slots by score (descending), then by start time (ascending).
+   - Return the top 10 slots (or fewer if less are available), formatted as ISO UTC strings.
+
+10. **Return Result**
+    - If slots are available, return them with a `success` status.
+    - If no slots are available, return a status indicating no availability or no slots found.
+
+### **How Gaps and Slot Recommendations Are Handled**
+
+- **Ontario Billing Gaps**: Enforced via `minGapAfter` from billing rules.
+- **Slot Scoring**: Rewards slots with sufficient gaps, penalizes clustering, and prioritizes least disruptive times.
+- **Conflict Avoidance**: Excludes slots overlapping with existing appointments.
+- **Extensible**: Logic supports future rules and multi-clinic/provider scenarios.
+
+---
+
+## Setup & Running Locally
 
 ```bash
-# unit tests
-$ npm run test
+# Install dependencies
+npm install
 
-# e2e tests
-$ npm run test:e2e
+# Set up your PostgreSQL database and update .env
 
-# test coverage
-$ npm run test:cov
+# Run database migrations and seed data
+npx prisma migrate deploy
+npx ts-node prisma/seed.ts
+
+# Start the server
+npm run start:dev
 ```
 
-## Deployment
+API will be available at `http://localhost:3000`.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+---
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+## Testing
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+# Run all tests
+npm run test
+
+# Run E2E tests
+npm run test:e2e
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+- 100% test coverage for business logic and API contract.
+- E2E tests use real seed data and validate all edge cases.
 
-## Resources
+---
 
-Check out a few resources that may come in handy when working with NestJS:
+## API Documentation
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+- Swagger UI available at: `http://localhost:3000/api/docs`
 
-## Support
+---
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## Postman Collection
 
-## Stay in touch
+- [Download the Postman Collection](./docs/nextera-ehr-api.postman_collection.json)  
+  _Import into Postman to try endpoints._
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+---
+
+## Tech Stack
+
+- **Framework:** NestJS (TypeScript)
+- **Database:** PostgreSQL (via Prisma ORM)
+- **Testing:** Jest, Supertest
+- **API Docs:** Swagger (OpenAPI)
+
+---
+
+## Project Structure
+
+```
+nextera-ehr-backend/
+  src/
+    appointments/      # Scheduling logic, controller, service, DTOs
+      dto/
+      enums/
+    database/          # Database module and service
+    main.ts            # App bootstrap
+    app.module.ts      # Root module
+  prisma/
+    schema.prisma      # Database schema
+    seed.ts            # Seed data
+    migrations/        # Prisma migrations
+  docs/                # Design docs, api docs
+  test/                # E2E and unit tests
+  README.md            # Project overview and setup instructions
+  package.json         # Project dependencies and scripts
+  ...
+```
+
+---
+
+## Contact
+
+- **Author:** [Nidhi Sharma]
+- **Email:** [nidhisharma40601@gmail.com](mailto:nidhisharma40601@gmail.com)
+- **LinkedIn:** [sharmanidhi0406](https://www.linkedin.com/in/sharmanidhi0406/)
+
+---
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+MIT
