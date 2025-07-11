@@ -22,88 +22,105 @@ describe('Appointments (e2e)', () => {
       },
     });
 
-    // Clear existing data
-    await prisma.appointment.deleteMany();
-    await prisma.availabilityBlock.deleteMany();
-    await prisma.billingRule.deleteMany();
-    await prisma.patient.deleteMany();
-    await prisma.physician.deleteMany();
-    await prisma.clinic.deleteMany();
+    // Check if test data already exists, if not create it
+    const existingClinic = await prisma.clinic.findFirst();
+    if (!existingClinic) {
+      // Only clear and seed if no data exists
+      await prisma.appointment.deleteMany();
+      await prisma.availabilityBlock.deleteMany();
+      await prisma.billingRule.deleteMany();
+      await prisma.patient.deleteMany();
+      await prisma.physician.deleteMany();
+      await prisma.clinic.deleteMany();
 
-    // Create test data directly
-    const clinic = await prisma.clinic.create({
-      data: {
-        name: 'Downtown Health Clinic',
-        street: '123 King St',
-        city: 'Toronto',
-        province: 'ON',
-        postalCode: 'M5H 2N2',
-        country: 'Canada',
-        timezone: 'America/Toronto',
-      },
-    });
-
-    const billingRule = await prisma.billingRule.create({
-      data: {
-        code: 'A001',
-        description: 'General Visit - 15 min',
-        minDurationMinutes: 15,
-        minGapAfter: 10,
-        maxApptsPerDay: 10,
-      },
-    });
-
-    const physician = await prisma.physician.create({
-      data: {
-        firstName: 'John',
-        lastName: 'Doe',
-        specialty: 'Family Medicine',
-        email: 'johndoe@example.com',
-        phone: '4165551234',
-        clinicId: clinic.id,
-      },
-    });
-
-    const patient = await prisma.patient.create({
-      data: {
-        firstName: 'Alice',
-        lastName: 'Smith',
-        dob: new Date('1995-03-10'),
-        healthCardNumber: 'OHIP123456',
-        email: 'alice@example.com',
-        phone: '4165556789',
-      },
-    });
-
-    // Create availability blocks
-    await prisma.availabilityBlock.createMany({
-      data: [
-        {
-          physicianId: physician.id,
-          clinicId: clinic.id,
-          isRecurring: true,
-          dayOfWeek: 2, // Tuesday
-          startTime: new Date('2025-07-01T09:00:00'),
-          endTime: new Date('2025-07-01T12:00:00'),
-          isAvailable: true,
+      // Create test data directly
+      const clinic = await prisma.clinic.create({
+        data: {
+          name: 'Downtown Health Clinic',
+          street: '123 King St',
+          city: 'Toronto',
+          province: 'ON',
+          postalCode: 'M5H 2N2',
+          country: 'Canada',
+          timezone: 'America/Toronto',
         },
-        {
-          physicianId: physician.id,
-          clinicId: clinic.id,
-          isRecurring: true,
-          dayOfWeek: 2,
-          startTime: new Date('2025-07-01T13:00:00'),
-          endTime: new Date('2025-07-01T17:00:00'),
-          isAvailable: true,
+      });
+
+      const billingRule = await prisma.billingRule.create({
+        data: {
+          code: 'A001',
+          description: 'General Visit - 15 min',
+          minDurationMinutes: 15,
+          minGapAfter: 10,
+          maxApptsPerDay: 10,
         },
-      ],
-    });
+      });
 
-    clinicId = clinic.id;
-    physicianId = physician.id;
-    patientId = patient.id;
+      const physician = await prisma.physician.create({
+        data: {
+          firstName: 'John',
+          lastName: 'Doe',
+          specialty: 'Family Medicine',
+          email: 'johndoe@example.com',
+          phone: '4165551234',
+          clinicId: clinic.id,
+        },
+      });
 
-    console.log('Test data IDs:', { clinicId, physicianId, patientId });
+      const patient = await prisma.patient.create({
+        data: {
+          firstName: 'Alice',
+          lastName: 'Smith',
+          dob: new Date('1995-03-10'),
+          healthCardNumber: 'OHIP123456',
+          email: 'alice@example.com',
+          phone: '4165556789',
+        },
+      });
+
+      // Create availability blocks
+      await prisma.availabilityBlock.createMany({
+        data: [
+          {
+            physicianId: physician.id,
+            clinicId: clinic.id,
+            isRecurring: true,
+            dayOfWeek: 2, // Tuesday
+            startTime: new Date('2025-07-01T09:00:00'),
+            endTime: new Date('2025-07-01T12:00:00'),
+            isAvailable: true,
+          },
+          {
+            physicianId: physician.id,
+            clinicId: clinic.id,
+            isRecurring: true,
+            dayOfWeek: 2,
+            startTime: new Date('2025-07-01T13:00:00'),
+            endTime: new Date('2025-07-01T17:00:00'),
+            isAvailable: true,
+          },
+        ],
+      });
+
+      clinicId = clinic.id;
+      physicianId = physician.id;
+      patientId = patient.id;
+
+      console.log('Test data IDs:', { clinicId, physicianId, patientId });
+    } else {
+      // Use existing data
+      const clinic = await prisma.clinic.findFirst();
+      const physician = await prisma.physician.findFirst();
+      const patient = await prisma.patient.findFirst();
+
+      if (clinic && physician && patient) {
+        clinicId = clinic.id;
+        physicianId = physician.id;
+        patientId = patient.id;
+      } else {
+        throw new Error('Required test data not found');
+      }
+    }
   });
 
   beforeEach(async () => {
