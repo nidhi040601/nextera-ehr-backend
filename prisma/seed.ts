@@ -92,7 +92,7 @@ async function main() {
         physicianId: physician.id,
         clinicId: clinic.id,
         isRecurring: false,
-        specificDate: new Date('2025-07-01'),
+        specificDate: new Date('2025-07-01T00:00:00'),
         startTime: new Date('2025-07-01T18:00:00'),
         endTime: new Date('2025-07-01T20:00:00'),
         isAvailable: true,

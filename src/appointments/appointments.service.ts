@@ -102,13 +102,52 @@ export class AppointmentsService {
     }
 
     // Convert availability blocks to time windows (in clinic's timezone)
-    const windows: Interval[] = availabilityBlocks.map((block) => {
-      const start = DateTime.fromJSDate(block.startTime, {
-        zone: clinic.timezone,
-      });
-      const end = DateTime.fromJSDate(block.endTime, { zone: clinic.timezone });
-      return Interval.fromDateTimes(start, end);
-    });
+    const windows: Interval[] = availabilityBlocks
+      .map((block) => {
+        // For recurring availability, use the requested date and the placeholder times
+        if (block.isRecurring) {
+          const requestedDate = DateTime.fromISO(preferredDate, {
+            zone: clinic.timezone,
+          });
+
+          // Skip this recurring block if day doesn't match
+          if (dayOfWeek !== block.dayOfWeek) {
+            return null;
+          }
+
+          const placeholderStart = DateTime.fromJSDate(block.startTime, {
+            zone: clinic.timezone,
+          });
+          const placeholderEnd = DateTime.fromJSDate(block.endTime, {
+            zone: clinic.timezone,
+          });
+
+          const start = requestedDate.set({
+            hour: placeholderStart.hour,
+            minute: placeholderStart.minute,
+            second: 0,
+            millisecond: 0,
+          });
+          const end = requestedDate.set({
+            hour: placeholderEnd.hour,
+            minute: placeholderEnd.minute,
+            second: 0,
+            millisecond: 0,
+          });
+
+          return Interval.fromDateTimes(start, end);
+        } else {
+          // For non-recurring availability, use the specific date and times
+          const start = DateTime.fromJSDate(block.startTime, {
+            zone: clinic.timezone,
+          });
+          const end = DateTime.fromJSDate(block.endTime, {
+            zone: clinic.timezone,
+          });
+          return Interval.fromDateTimes(start, end);
+        }
+      })
+      .filter((window) => window !== null);
     this.logger.log(`Generated ${windows.length} availability windows.`);
 
     // Slice each window into slots of durationMinutes
@@ -144,39 +183,60 @@ export class AppointmentsService {
     const relevantBookingRule = billingRules
       .filter((rule) => rule.minDurationMinutes <= durationMinutes)
       .sort((a, b) => b.minDurationMinutes - a.minDurationMinutes)[0];
+
     const minGap = relevantBookingRule ? relevantBookingRule.minGapAfter : 0;
     this.logger.log(`Using minGap=${minGap} from billing rule.`);
 
     slots = slots.map((slot) => {
-      const prev = appointmentIntervals
+      // Find previous and next appointments to calculate gap and score
+      const prevAppointment = appointmentIntervals
         .filter((appt) => appt.end <= slot.start)
         .sort((a, b) => b.end.toMillis() - a.end.toMillis())[0];
-      const next = appointmentIntervals
+      const nextAppointment = appointmentIntervals
         .filter((appt) => appt.start >= slot.end)
         .sort((a, b) => a.start.toMillis() - b.start.toMillis())[0];
+
       let score = 100;
-      if (prev) {
-        const gapBefore = slot.start.diff(prev.end, 'minutes').minutes;
+
+      if (prevAppointment) {
+        const gapBefore = slot.start.diff(
+          prevAppointment.end,
+          'minutes',
+        ).minutes;
         if (gapBefore < minGap) score -= (minGap - gapBefore) * 10;
       }
-      if (next) {
-        const gapAfter = next.start.diff(slot.end, 'minutes').minutes;
+      if (nextAppointment) {
+        const gapAfter = nextAppointment.start.diff(
+          slot.end,
+          'minutes',
+        ).minutes;
         if (gapAfter < minGap) score -= (minGap - gapAfter) * 10;
       }
+
+      // Add bonus points for required gaps
       if (
-        (!prev || slot.start.diff(prev.end, 'minutes').minutes >= minGap) &&
-        (!next || next.start.diff(slot.end, 'minutes').minutes >= minGap)
+        (!prevAppointment ||
+          slot.start.diff(prevAppointment.end, 'minutes').minutes >= minGap) &&
+        (!nextAppointment ||
+          nextAppointment.start.diff(slot.end, 'minutes').minutes >= minGap)
       ) {
         score += 20;
       }
+
+      // Add bonus points for morning slots
       if (slot.start.hour >= 9 && slot.start.hour < 12) score += 15;
+
+      // Deduct points for nearby appointments
       const nearby = appointmentIntervals.filter(
         (appt) =>
           Math.abs(appt.start.diff(slot.start, 'minutes').minutes) <= 60 ||
           Math.abs(appt.end.diff(slot.start, 'minutes').minutes) <= 60,
       ).length;
-      if (nearby === 0) score += 25;
-      else if (nearby > 2) score -= 15;
+      if (nearby === 0) {
+        score += 25;
+      } else if (nearby > 2) {
+        score -= 15;
+      }
       return { ...slot, score: Math.max(0, score) };
     });
     this.logger.log(`Scored all slots.`);
